@@ -1,0 +1,3 @@
+*.exe
+gdb_service
+main
