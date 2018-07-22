@@ -84,11 +84,14 @@ func ReadMessage(input chan<- string) {
 
 // Compile read makefile and compile
 func Compile(pn string) {
-	// generate makefile
-	// GenerateMakefileContent(pn)
+	// create Debug/temp folder if not exists
+	err := os.MkdirAll("Debug/temp", os.ModePerm)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 
 	// generate runable file
-	cmd := exec.Command("make", "-f", "Debug/Makefile")
+	cmd := exec.Command("make", "-f", "Makefile")
 	cmdout, err := cmd.StderrPipe()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
