@@ -37,7 +37,7 @@ func main() {
 	// *************************************************
 
 	// receive message from stdin
-	inputChan := make(chan string, 10)
+	inputChan := make(chan string, 0)
 	go ReadMessage(inputChan)
 
 	// compile and start gdb
@@ -49,7 +49,12 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	gdb.Send("file-exec-and-symbols", "Debug/"+userProjectConf.ProjectName)
+	ret, err := gdb.CheckedSend("file-exec-and-symbols", "Debug/"+"main")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Println(ret)
 
 	// read stdin message and send to gdb
 	for msg := range inputChan {
@@ -59,7 +64,7 @@ func main() {
 			<-timer.C
 			os.Exit(0)
 		}
-		ret, err := gdb.Send(msg)
+		ret, err := gdb.CheckedSend(msg)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -78,7 +83,9 @@ func ReadMessage(input chan<- string) {
 			return
 		}
 		text = text[:len(text)-1]
-		input <- text
+		if len(text) >= 1 {
+			input <- text
+		}
 	}
 }
 
