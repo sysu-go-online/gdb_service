@@ -5,71 +5,50 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	"github.com/cyrus-and/gdb"
 	"github.com/sysu-go-online/gdb_service/types"
-	yaml "gopkg.in/yaml.v2"
 )
 
 func main() {
-	// *************read configure file*****************
-	cwd, err := os.Getwd()
-	if err != nil {
-		PrintError(err)
-		os.Exit(1)
-	}
-	userProjectConfPath := filepath.Join(cwd, "go-online.yml")
-	userProjectConf := types.UserConf{}
-	if _, err := os.Stat(userProjectConfPath); os.IsExist(err) {
-		userProjectConfData, err := ioutil.ReadFile(userProjectConfPath)
-		if err != nil {
-			PrintError(err)
-		}
-		if err = yaml.Unmarshal(userProjectConfData, &userProjectConf); err != nil {
-			PrintError(err)
-		}
-	}
-	userProjectConf.SetDefault()
-	// *************************************************
-
 	// receive message from stdin
 	inputChan := make(chan string, 0)
 	go ReadMessage(inputChan)
 
 	// compile and start gdb
-	Compile(userProjectConf.ProjectName)
+	Compile()
 	gdb, err := gdb.New(func(notification map[string]interface{}) {
-		fmt.Println(notification)
+
+		PrintMessage(1, []byte(fmt.Sprint(notification)))
 	})
-	// Read out put and send into stdout
+
+	// Read user process output and send into stdout
 	go func() {
 		for {
 			msg := make([]byte, 5)
 			n, err := gdb.Read(msg)
 			if err != nil {
-				PrintError(err)
+				PrintMessage(3, []byte(err.Error()))
 				os.Exit(1)
 			}
 			if n != 0 {
-				fmt.Print(string(msg))
+				PrintMessage(2, msg)
 			}
 		}
 	}()
 	if err != nil {
-		PrintError(err)
+		PrintMessage(3, []byte(err.Error()))
 		os.Exit(1)
 	}
 	ret, err := gdb.CheckedSend("file-exec-and-symbols", "Debug/"+"main")
 	if err != nil {
-		PrintError(err)
+		PrintMessage(3, []byte(err.Error()))
 		os.Exit(1)
 	}
-	fmt.Println(ret)
+	PrintMessage(1, []byte(fmt.Sprint(ret)))
 
 	// read stdin message and send to gdb
 	for msg := range inputChan {
@@ -81,9 +60,9 @@ func main() {
 		}
 		ret, err := gdb.CheckedSend(msg)
 		if err != nil {
-			PrintError(err)
+			PrintMessage(3, []byte(err.Error()))
 		}
-		fmt.Println(ret)
+		PrintMessage(1, []byte(fmt.Sprint(ret)))
 	}
 }
 
@@ -93,7 +72,7 @@ func ReadMessage(input chan<- string) {
 		reader := bufio.NewReader(os.Stdin)
 		text, err := reader.ReadString('\n')
 		if err != nil {
-			PrintError(err)
+			PrintMessage(3, []byte(err.Error()))
 			close(input)
 			return
 		}
@@ -105,34 +84,36 @@ func ReadMessage(input chan<- string) {
 }
 
 // Compile read makefile and compile
-func Compile(pn string) {
+func Compile() {
 	// create Debug/temp folder if not exists
 	err := os.MkdirAll("Debug/temp", os.ModePerm)
 	if err != nil {
-		PrintError(err)
+		PrintMessage(3, []byte(err.Error()))
 	}
 
 	// generate runable file
 	cmd := exec.Command("make", "-f", "Makefile")
 	cmdout, err := cmd.StderrPipe()
 	if err != nil {
-		PrintError(err)
+		PrintMessage(3, []byte(err.Error()))
 	}
 	go io.Copy(os.Stderr, cmdout)
 	err = cmd.Run()
 	if err != nil {
-		PrintError(err)
+		PrintMessage(3, []byte(err.Error()))
 		os.Exit(1)
 	}
 }
 
-// PrintError print error as struct
-func PrintError(err error) {
-	type Error struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
+// PrintMessage print gdb,error and user process output data
+func PrintMessage(msgType int, msg []byte) {
+	Type := "gdb"
+	if msgType == 2 {
+		Type = "output"
+	} else if msgType == 3 {
+		Type = "error"
 	}
-	retError := Error{"error", err.Error()}
-	byteError, _ := json.Marshal(retError)
-	fmt.Fprintln(os.Stderr, byteError)
+	retMsg := types.ResponseData{Type, msg}
+	byteMsg, _ := json.Marshal(retMsg)
+	fmt.Println(byteMsg)
 }

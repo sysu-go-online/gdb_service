@@ -11,6 +11,12 @@ type UserConf struct {
 	Environment []string
 }
 
+// ResponseData contains output data and type
+type ResponseData struct {
+	Type string `json:"type"`
+	Msg  []byte `json:"msg"`
+}
+
 // SetDefault set default value
 func (c *UserConf) SetDefault() {
 	if c != nil {
