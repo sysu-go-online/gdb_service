@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,7 +20,7 @@ func main() {
 	// *************read configure file*****************
 	cwd, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		PrintError(err)
 		os.Exit(1)
 	}
 	userProjectConfPath := filepath.Join(cwd, "go-online.yml")
@@ -27,10 +28,10 @@ func main() {
 	if _, err := os.Stat(userProjectConfPath); os.IsExist(err) {
 		userProjectConfData, err := ioutil.ReadFile(userProjectConfPath)
 		if err != nil {
-			fmt.Println(err)
+			PrintError(err)
 		}
 		if err = yaml.Unmarshal(userProjectConfData, &userProjectConf); err != nil {
-			fmt.Println(err)
+			PrintError(err)
 		}
 	}
 	userProjectConf.SetDefault()
@@ -45,13 +46,27 @@ func main() {
 	gdb, err := gdb.New(func(notification map[string]interface{}) {
 		fmt.Println(notification)
 	})
+	// Read out put and send into stdout
+	go func() {
+		for {
+			msg := make([]byte, 5)
+			n, err := gdb.Read(msg)
+			if err != nil {
+				PrintError(err)
+				os.Exit(1)
+			}
+			if n != 0 {
+				fmt.Print(string(msg))
+			}
+		}
+	}()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		PrintError(err)
 		os.Exit(1)
 	}
 	ret, err := gdb.CheckedSend("file-exec-and-symbols", "Debug/"+"main")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		PrintError(err)
 		os.Exit(1)
 	}
 	fmt.Println(ret)
@@ -66,7 +81,7 @@ func main() {
 		}
 		ret, err := gdb.CheckedSend(msg)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			PrintError(err)
 		}
 		fmt.Println(ret)
 	}
@@ -78,7 +93,7 @@ func ReadMessage(input chan<- string) {
 		reader := bufio.NewReader(os.Stdin)
 		text, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			PrintError(err)
 			close(input)
 			return
 		}
@@ -94,19 +109,30 @@ func Compile(pn string) {
 	// create Debug/temp folder if not exists
 	err := os.MkdirAll("Debug/temp", os.ModePerm)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		PrintError(err)
 	}
 
 	// generate runable file
 	cmd := exec.Command("make", "-f", "Makefile")
 	cmdout, err := cmd.StderrPipe()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		PrintError(err)
 	}
 	go io.Copy(os.Stderr, cmdout)
 	err = cmd.Run()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		PrintError(err)
 		os.Exit(1)
 	}
+}
+
+// PrintError print error as struct
+func PrintError(err error) {
+	type Error struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	}
+	retError := Error{"error", err.Error()}
+	byteError, _ := json.Marshal(retError)
+	fmt.Fprintln(os.Stderr, byteError)
 }
