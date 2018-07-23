@@ -14,7 +14,7 @@ type UserConf struct {
 // ResponseData contains output data and type
 type ResponseData struct {
 	Type string `json:"type"`
-	Msg  []byte `json:"msg"`
+	Msg  string `json:"msg"`
 }
 
 // SetDefault set default value

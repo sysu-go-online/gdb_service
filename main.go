@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,33 +23,35 @@ func main() {
 	Compile()
 	gdb, err := gdb.New(func(notification map[string]interface{}) {
 
-		PrintMessage(1, []byte(fmt.Sprint(notification)))
+		PrintMessage(1, fmt.Sprint(notification))
 	})
 
 	// Read user process output and send into stdout
 	go func() {
 		for {
-			msg := make([]byte, 5)
-			n, err := gdb.Read(msg)
+			// use multiplicy of 3 as it use 3 bytes to store chinese character
+			msg := make([]byte, 90)
+			_, err := gdb.Read(msg)
 			if err != nil {
-				PrintMessage(3, []byte(err.Error()))
+				PrintMessage(3, err.Error())
 				os.Exit(1)
 			}
-			if n != 0 {
-				PrintMessage(2, msg)
+			msg = bytes.Trim(msg, "\x00")
+			if len(msg) != 0 {
+				PrintMessage(2, string(msg))
 			}
 		}
 	}()
 	if err != nil {
-		PrintMessage(3, []byte(err.Error()))
+		PrintMessage(3, err.Error())
 		os.Exit(1)
 	}
 	ret, err := gdb.CheckedSend("file-exec-and-symbols", "Debug/"+"main")
 	if err != nil {
-		PrintMessage(3, []byte(err.Error()))
+		PrintMessage(3, err.Error())
 		os.Exit(1)
 	}
-	PrintMessage(1, []byte(fmt.Sprint(ret)))
+	PrintMessage(1, fmt.Sprint(ret))
 
 	// read stdin message and send to gdb
 	for msg := range inputChan {
@@ -60,9 +63,9 @@ func main() {
 		}
 		ret, err := gdb.CheckedSend(msg)
 		if err != nil {
-			PrintMessage(3, []byte(err.Error()))
+			PrintMessage(3, err.Error())
 		}
-		PrintMessage(1, []byte(fmt.Sprint(ret)))
+		PrintMessage(1, fmt.Sprint(ret))
 	}
 }
 
@@ -72,7 +75,7 @@ func ReadMessage(input chan<- string) {
 		reader := bufio.NewReader(os.Stdin)
 		text, err := reader.ReadString('\n')
 		if err != nil {
-			PrintMessage(3, []byte(err.Error()))
+			PrintMessage(3, err.Error())
 			close(input)
 			return
 		}
@@ -88,25 +91,25 @@ func Compile() {
 	// create Debug/temp folder if not exists
 	err := os.MkdirAll("Debug/temp", os.ModePerm)
 	if err != nil {
-		PrintMessage(3, []byte(err.Error()))
+		PrintMessage(3, err.Error())
 	}
 
 	// generate runable file
 	cmd := exec.Command("make", "-f", "Makefile")
 	cmdout, err := cmd.StderrPipe()
 	if err != nil {
-		PrintMessage(3, []byte(err.Error()))
+		PrintMessage(3, err.Error())
 	}
 	go io.Copy(os.Stderr, cmdout)
 	err = cmd.Run()
 	if err != nil {
-		PrintMessage(3, []byte(err.Error()))
+		PrintMessage(3, err.Error())
 		os.Exit(1)
 	}
 }
 
 // PrintMessage print gdb,error and user process output data
-func PrintMessage(msgType int, msg []byte) {
+func PrintMessage(msgType int, msg string) {
 	Type := "gdb"
 	if msgType == 2 {
 		Type = "output"
@@ -115,5 +118,5 @@ func PrintMessage(msgType int, msg []byte) {
 	}
 	retMsg := types.ResponseData{Type, msg}
 	byteMsg, _ := json.Marshal(retMsg)
-	fmt.Println(byteMsg)
+	fmt.Println(string(byteMsg))
 }
