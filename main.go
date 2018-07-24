@@ -22,9 +22,12 @@ func main() {
 	// compile and start gdb
 	Compile()
 	gdb, err := gdb.New(func(notification map[string]interface{}) {
-
-		PrintMessage(1, fmt.Sprint(notification))
+		PrintMessage(1, notification)
 	})
+	if err != nil {
+		PrintMessage(3, map[string]interface{}{"error": err.Error()})
+		os.Exit(1)
+	}
 
 	// Read user process output and send into stdout
 	go func() {
@@ -33,25 +36,21 @@ func main() {
 			msg := make([]byte, 90)
 			_, err := gdb.Read(msg)
 			if err != nil {
-				PrintMessage(3, err.Error())
+				PrintMessage(3, map[string]interface{}{"error": err.Error()})
 				os.Exit(1)
 			}
 			msg = bytes.Trim(msg, "\x00")
 			if len(msg) != 0 {
-				PrintMessage(2, string(msg))
+				PrintMessage(2, map[string]interface{}{"msg": string(msg)})
 			}
 		}
 	}()
-	if err != nil {
-		PrintMessage(3, err.Error())
-		os.Exit(1)
-	}
 	ret, err := gdb.CheckedSend("file-exec-and-symbols", "Debug/"+"main")
 	if err != nil {
-		PrintMessage(3, err.Error())
+		PrintMessage(3, map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
-	PrintMessage(1, fmt.Sprint(ret))
+	PrintMessage(1, ret)
 
 	// read stdin message and send to gdb
 	for msg := range inputChan {
@@ -63,9 +62,9 @@ func main() {
 		}
 		ret, err := gdb.CheckedSend(msg)
 		if err != nil {
-			PrintMessage(3, err.Error())
+			PrintMessage(3, map[string]interface{}{"error": err.Error()})
 		}
-		PrintMessage(1, fmt.Sprint(ret))
+		PrintMessage(1, ret)
 	}
 }
 
@@ -75,7 +74,7 @@ func ReadMessage(input chan<- string) {
 		reader := bufio.NewReader(os.Stdin)
 		text, err := reader.ReadString('\n')
 		if err != nil {
-			PrintMessage(3, err.Error())
+			// PrintMessage(3, map[string]interface{}{"error": err.Error()})
 			close(input)
 			return
 		}
@@ -91,25 +90,25 @@ func Compile() {
 	// create Debug/temp folder if not exists
 	err := os.MkdirAll("Debug/temp", os.ModePerm)
 	if err != nil {
-		PrintMessage(3, err.Error())
+		PrintMessage(3, map[string]interface{}{"error": err.Error()})
 	}
 
 	// generate runable file
 	cmd := exec.Command("make", "-f", "Makefile")
 	cmdout, err := cmd.StderrPipe()
 	if err != nil {
-		PrintMessage(3, err.Error())
+		PrintMessage(3, map[string]interface{}{"error": err.Error()})
 	}
 	go io.Copy(os.Stderr, cmdout)
 	err = cmd.Run()
 	if err != nil {
-		PrintMessage(3, err.Error())
+		PrintMessage(3, map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
 }
 
 // PrintMessage print gdb,error and user process output data
-func PrintMessage(msgType int, msg string) {
+func PrintMessage(msgType int, msg map[string]interface{}) {
 	Type := "gdb"
 	if msgType == 2 {
 		Type = "output"

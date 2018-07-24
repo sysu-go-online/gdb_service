@@ -13,8 +13,8 @@ type UserConf struct {
 
 // ResponseData contains output data and type
 type ResponseData struct {
-	Type string `json:"type"`
-	Msg  string `json:"msg"`
+	Type string                 `json:"type"`
+	Msg  map[string]interface{} `json:"msg"`
 }
 
 // SetDefault set default value
