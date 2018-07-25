@@ -50,6 +50,7 @@ func main() {
 		PrintMessage(3, map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
+	ret["command"] = "file-exec-and-symbols"
 	PrintMessage(1, ret)
 
 	// read stdin message and send to gdb
@@ -64,6 +65,7 @@ func main() {
 		if err != nil {
 			PrintMessage(3, map[string]interface{}{"error": err.Error()})
 		}
+		ret["command"] = msg
 		PrintMessage(1, ret)
 	}
 }
