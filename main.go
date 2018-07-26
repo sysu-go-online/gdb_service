@@ -36,7 +36,7 @@ func main() {
 			msg := make([]byte, 90)
 			_, err := gdb.Read(msg)
 			if err != nil {
-				PrintMessage(3, map[string]interface{}{"error": err.Error()})
+				// PrintMessage(3, map[string]interface{}{"error": err.Error()})
 				os.Exit(1)
 			}
 			msg = bytes.Trim(msg, "\x00")
@@ -47,7 +47,7 @@ func main() {
 	}()
 	ret, err := gdb.CheckedSend("file-exec-and-symbols", "Debug/"+"main")
 	if err != nil {
-		PrintMessage(3, map[string]interface{}{"error": err.Error()})
+		PrintMessage(3, map[string]interface{}{"error": err.Error(), "command": "file-exec-and-symbols"})
 		os.Exit(1)
 	}
 	ret["command"] = "file-exec-and-symbols"
@@ -63,7 +63,8 @@ func main() {
 		}
 		ret, err := gdb.CheckedSend(msg)
 		if err != nil {
-			PrintMessage(3, map[string]interface{}{"error": err.Error()})
+			PrintMessage(3, map[string]interface{}{"error": err.Error(), "command": msg})
+			continue
 		}
 		ret["command"] = msg
 		PrintMessage(1, ret)
@@ -100,6 +101,7 @@ func Compile() {
 	cmdout, err := cmd.StderrPipe()
 	if err != nil {
 		PrintMessage(3, map[string]interface{}{"error": err.Error()})
+		os.Exit(1)
 	}
 	go io.Copy(os.Stderr, cmdout)
 	err = cmd.Run()
